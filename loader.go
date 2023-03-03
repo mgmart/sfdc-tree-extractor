@@ -23,9 +23,11 @@ func main() {
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
 	log.Debug("Bearer: ", bearer)
+	getAccount("0017Q00000NyD8jQAF")
+	// log.Debug("Account: ", account)
 	childs := getChilds("Account", "0017Q00000NyD8jQAF")
 	for _, v := range childs {
-		log.Debug(v.Type)
+		log.Debug("   child: " + v.Id + " - " + v.Type)
 	}
 }
 
@@ -57,20 +59,20 @@ func getChilds(tpe string, objc string) []sObject {
 		if v.Name != "" {
 			switch includeList == nil {
 			case true:
-				log.Debug("Catching all objects ...")
+				// log.Debug("Catching all objects ...")
 				if !slices.Contains(excludeList, v.Obj) {
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			case false:
 
 				if slices.Contains(includeList, v.Obj) {
-					log.Debug("Catching selected type ...")
+					// log.Debug("Catching selected type ...")
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			}
 		}
 	}
-	log.Debug("Childs: ", len(childs))
+	// log.Debug("Childs: ", len(childs))
 	return childs
 }
 
@@ -97,8 +99,11 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 		if err := json.Unmarshal(body, &dat); err != nil {
 			panic(err)
 		}
-		log.Debug("Child: ", dat.d("attributes").s("type"))
-		result = append(result, sObject{Type: dat.d("attributes").s("type"), Body: dat})
+		// log.Debug("Child: ", dat.d("attributes").s("type"))
+		// log.Debug("Child Id: ", dat["Id"])
+		result = append(result, sObject{Type: dat.d("attributes").s("type"),
+			Body: dat,
+			Id:   dat.s("Id")})
 	}
 	return result
 }
@@ -155,22 +160,21 @@ func getOpportunity(oppO string) Opportunity {
 	return opp
 }
 
-// getAccount returns a Account structure given a
-// sObjectId
-func getAccount(accO string) Account {
+// getAccount returns a account as sObject
+// structure given a sObjectId
+func getAccount(accO string) sObject {
 
 	url := baseurl + "Account/" + accO
 	req, _ := http.NewRequest("GET", url, nil)
+
 	body := getSalesForce(req)
-	var acc Account
-	json.Unmarshal(body, &acc)
 
-	log.Debug("Id         : ", acc.Id)
-	log.Debug("Name       : ", acc.Name)
-	log.Debug("Type       : ", acc.Type)
-	log.Debug("Description: ", acc.Description)
-
-	return acc
+	var dat rawObject
+	if err := json.Unmarshal(body, &dat); err != nil {
+		panic(err)
+	}
+	return sObject{Type: dat.d("attributes").s("type"),
+		Body: dat, Id: dat.s("Id")}
 }
 
 // getSalesForce returns the response for a given

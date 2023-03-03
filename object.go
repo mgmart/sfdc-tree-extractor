@@ -41,6 +41,7 @@ type Token struct {
 
 type sObject struct {
 	Type string
+	Id   string
 	Body map[string]interface{}
 }
 
