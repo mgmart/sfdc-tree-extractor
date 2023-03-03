@@ -24,3 +24,17 @@ type ChildRelationship struct {
 type ObjectDescription struct {
 	Childs []ChildRelationship `json:"childRelationships"`
 }
+
+type InvalidRequestResponse struct {
+	Message   string `json:"message"`
+	ErrorCode string `json:"errorCode"`
+}
+
+type Token struct {
+	Bearer    string `json:"access_token"`
+	Type      string `json:"token_type"`
+	URL       string `json:"instance_url"`
+	Id        string `json:"id"`
+	Issued    string `json:"issued_at"`
+	Signature string `json:"signature"`
+}
