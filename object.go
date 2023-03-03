@@ -38,3 +38,18 @@ type Token struct {
 	Issued    string `json:"issued_at"`
 	Signature string `json:"signature"`
 }
+
+type sObject struct {
+	Type string
+	Body map[string]interface{}
+}
+
+type rawObject map[string]interface{}
+
+func (d rawObject) d(k string) rawObject {
+	return d[k].(map[string]interface{})
+}
+
+func (d rawObject) s(k string) string {
+	return d[k].(string)
+}

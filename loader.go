@@ -23,13 +23,16 @@ func main() {
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
 	log.Debug("Bearer: ", bearer)
-	getChilds("Account", "0017Q00000NyD8jQAF")
+	childs := getChilds("Account", "0017Q00000NyD8jQAF")
+	for _, v := range childs {
+		log.Debug(v.Type)
+	}
 }
 
 // getChilds gets all possible children of a given parent
 // exlude and include lists are regarded
-// TODO: return the according result
-func getChilds(tpe string, objc string) {
+// DONE: return the according result
+func getChilds(tpe string, objc string) []sObject {
 	// Getting all possible types which can be a child
 	url := baseurl + tpe + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
@@ -49,31 +52,35 @@ func getChilds(tpe string, objc string) {
 
 	// Query each type objects to get the childs of this type
 	// TODO: Selection of include List could be less cryptic
+	var childs []sObject
 	for _, v := range obj.Childs {
 		if v.Name != "" {
 			switch includeList == nil {
 			case true:
 				log.Debug("Catching all objects ...")
 				if !slices.Contains(excludeList, v.Obj) {
-					getChildObjects(objc, v.Obj, v.Field)
+					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			case false:
 
 				if slices.Contains(includeList, v.Obj) {
 					log.Debug("Catching selected type ...")
-					getChildObjects(objc, v.Obj, v.Field)
+					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			}
 		}
 	}
+	log.Debug("Childs: ", len(childs))
+	return childs
 }
 
 // getChildOjects gets all objects of a given type which have a SalesForce
 // objectId in a given field
-func getChildObjects(objId string, tpe string, nme string) {
+func getChildObjects(objId string, tpe string, nme string) []sObject {
 	url := queryurl + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
+	var result []sObject
 
 	// log.Debug("Query: ", url)
 	var res QueryResult
@@ -86,14 +93,14 @@ func getChildObjects(objId string, tpe string, nme string) {
 		req, _ := http.NewRequest("GET", url, nil)
 		body := getSalesForce(req)
 
-		var dat map[string]interface{}
-
+		var dat rawObject
 		if err := json.Unmarshal(body, &dat); err != nil {
 			panic(err)
 		}
-		// log.Debug("Child: ", dat["Name"], " id: ", dat["Id"])
-		log.Debug("Child: ", dat)
+		log.Debug("Child: ", dat.d("attributes").s("type"))
+		result = append(result, sObject{Type: dat.d("attributes").s("type"), Body: dat})
 	}
+	return result
 }
 
 // getContacts returns all Contacts which have a relationship
