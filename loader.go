@@ -13,30 +13,76 @@ import (
 func main() {
 
 	log.Level = log.LevelDebug
-
 	log.Info("sandbox-loader starting ...")
 	// TODO: use composite API to limit number of API calls
 	// TODO: use insertTree to get relationships automatically
 	// DONE: build include-list support
 	// TODO: create & use a configuration file
 	// DONE: implement proper authentication
+	// TODO: link e.g. calculation not only to account but also to contract
+	// TODO: create graph of objects
+	// TODO: load graph into SB
+
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
-	log.Debug("Bearer: ", bearer)
-	getAccount("0017Q00000NyD8jQAF")
+
+	account := getAccount("0017Q00000NyD8jQAF")
+	// for k, v := range account.Body {
+	// 	log.Debug("Key    : ", k)
+	// 	log.Debug("Value  : ", v)
+	// }
 	// log.Debug("Account: ", account)
-	childs := getChilds("Account", "0017Q00000NyD8jQAF")
+	childs := getChilds(account.Type, account.Id)
+
+	// Cleanup IDs
+	var idMapping map[string][]string
+	idMapping = map[string][]string{
+		"Case":        {"ContactId", "AccountId"},
+		"Contact":     {"AccountId"},
+		"Opportunity": {"AccountId"},
+	}
+
+	//create or open file
+	f, err := os.OpenFile("test.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
 	for _, v := range childs {
-		log.Debug("   child: " + v.Id + " - " + v.Type)
+		// log.Debug("   child: " + v.Id + " - " + v.URL)
+		account.Childs = append(account.Childs, v)
+	}
+	log.Debug("Length of Childs: ", len(account.Childs))
+
+	cRequest := compRequest{GraphId: "1"}
+
+	delete(account.Body, "attributes")
+	account.Method = "POST"
+	cRequest.CompRequest = append(cRequest.CompRequest, account)
+
+	for _, v := range childs {
+		delete(v.Body, "attributes")
+		v.Method = "POST"
+		for _, t := range idMapping[v.Type] {
+			v.Body[t] = "@{" + v.Body.s(t) + "}"
+		}
+		// Create compound request element
+		cRequest.CompRequest = append(cRequest.CompRequest, v)
+	}
+	log.Debug("Length of cRequest: ", len(cRequest.CompRequest))
+	data, _ := json.MarshalIndent(cRequest, "", " ")
+	if _, err = f.Write(data); err != nil {
+		panic(err)
 	}
 }
 
 // getChilds gets all possible children of a given parent
 // exlude and include lists are regarded
 // DONE: return the according result
-func getChilds(tpe string, objc string) []sObject {
+func getChilds(oType string, objc string) []sObject {
 	// Getting all possible types which can be a child
-	url := baseurl + tpe + "/describe"
+	url := baseurl + oType + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var obj ObjectDescription
@@ -48,12 +94,11 @@ func getChilds(tpe string, objc string) []sObject {
 		panic(err)
 	}
 
-	// log.Debug("Get Child: Root Object:", dat)
-	// log.Debug(obj.Childs)
-	// log.Debug(
-
 	// Query each type objects to get the childs of this type
 	// TODO: Selection of include List could be less cryptic
+
+	log.Debug("Getting Childs for: ", oType)
+	log.Debug("Calls so far: ", calls)
 	var childs []sObject
 	for _, v := range obj.Childs {
 		if v.Name != "" {
@@ -64,7 +109,6 @@ func getChilds(tpe string, objc string) []sObject {
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			case false:
-
 				if slices.Contains(includeList, v.Obj) {
 					// log.Debug("Catching selected type ...")
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
@@ -72,7 +116,6 @@ func getChilds(tpe string, objc string) []sObject {
 			}
 		}
 	}
-	// log.Debug("Childs: ", len(childs))
 	return childs
 }
 
@@ -84,13 +127,10 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	body := getSalesForce(req)
 	var result []sObject
 
-	// log.Debug("Query: ", url)
 	var res QueryResult
 	json.Unmarshal(body, &res)
-	//	log.Debug(string(body))
 
 	for _, v := range res.Records {
-		// log.Debug("URL of Object: ", v.Attributes.URL)
 		url := sfdcurl + v.Attributes.URL
 		req, _ := http.NewRequest("GET", url, nil)
 		body := getSalesForce(req)
@@ -99,11 +139,13 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 		if err := json.Unmarshal(body, &dat); err != nil {
 			panic(err)
 		}
-		// log.Debug("Child: ", dat.d("attributes").s("type"))
-		// log.Debug("Child Id: ", dat["Id"])
-		result = append(result, sObject{Type: dat.d("attributes").s("type"),
+
+		result = append(result, sObject{
+			Type: dat.d("attributes").s("type"),
+			URL:  "/services/data/v57.0/sobjects/" + dat.d("attributes").s("type") + "/",
 			Body: dat,
-			Id:   dat.s("Id")})
+			Id:   dat.s("Id"),
+		})
 	}
 	return result
 }
@@ -152,10 +194,10 @@ func getOpportunity(oppO string) Opportunity {
 	var opp Opportunity
 	json.Unmarshal(body, &opp)
 
-	log.Debug("Id     : ", opp.Id)
-	log.Debug("Name   : ", opp.Name)
-	log.Debug("Type   : ", opp.Type)
-	log.Debug("Account: ", opp.AccountId)
+	log.Debug("Id      : ", opp.Id)
+	log.Debug("Name    : ", opp.Name)
+	log.Debug("Type    : ", opp.Type)
+	log.Debug("Account : ", opp.AccountId)
 
 	return opp
 }
@@ -174,7 +216,10 @@ func getAccount(accO string) sObject {
 		panic(err)
 	}
 	return sObject{Type: dat.d("attributes").s("type"),
-		Body: dat, Id: dat.s("Id")}
+		Body: dat,
+		Id:   dat.s("Id"),
+		URL:  "/services/data/v57.0/sobjects/Account",
+	}
 }
 
 // getSalesForce returns the response for a given
@@ -182,7 +227,7 @@ func getAccount(accO string) sObject {
 func getSalesForce(req *http.Request) []byte {
 
 	req.Header.Add("Authorization", bearer)
-
+	calls = calls + 1
 	client := &http.Client{}
 	resp, err := client.Do(req)
 

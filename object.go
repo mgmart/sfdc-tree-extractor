@@ -39,12 +39,6 @@ type Token struct {
 	Signature string `json:"signature"`
 }
 
-type sObject struct {
-	Type string
-	Id   string
-	Body map[string]interface{}
-}
-
 type rawObject map[string]interface{}
 
 func (d rawObject) d(k string) rawObject {
@@ -54,3 +48,17 @@ func (d rawObject) d(k string) rawObject {
 func (d rawObject) s(k string) string {
 	return d[k].(string)
 }
+type sObject struct {
+	Type   string    `json:"-"`
+	URL    string    `json:"url"`
+	Body   rawObject `json:"body"`
+	Id     string    `json:"referenceId"`
+	Method string    `json:"method"`
+	Childs []sObject `json:"-"`
+}
+
+type compRequest struct {
+	GraphId     string    `json:"graphId"` // : "1",
+	CompRequest []sObject `json:"compositeRequest"`
+}
+

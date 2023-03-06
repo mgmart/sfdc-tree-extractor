@@ -15,3 +15,5 @@ var bearer = "Bearer " + "<<access-token>>"
 var excludeList = []string{"ActivityHistory", "AttachedContentDocument", "CombinedAttachment", "NoteAndAttachment", "OpenActivity", "ProcessInstanceHistory"}
 
 var includeList = []string{"Case", "Contact", "Opportunity", "Account"}
+var calls = 0
+
