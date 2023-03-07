@@ -19,14 +19,15 @@ func main() {
 	// DONE: build include-list support
 	// TODO: create & use a configuration file
 	// DONE: implement proper authentication
-	// TODO: link e.g. calculation not only to account but also to contract
-	// TODO: create graph of objects
-	// TODO: load graph into SB
+	// DONE: link e.g. calculation not only to account but also to contract
+	// DONE: create graph of objects
+	// DONE: load graph into SB (can be done by Postman or so ...)
 
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
 
 	account := getAccount("0017Q00000NyD8jQAF")
+	cleanUpObjects(&account)
 	// for k, v := range account.Body {
 	// 	log.Debug("Key    : ", k)
 	// 	log.Debug("Value  : ", v)
@@ -37,8 +38,8 @@ func main() {
 	// Cleanup IDs
 	var idMapping map[string][]string
 	idMapping = map[string][]string{
-		"Case":        {"ContactId", "AccountId"},
 		"Contact":     {"AccountId"},
+		"Case":        {"ContactId", "AccountId"},
 		"Opportunity": {"AccountId"},
 	}
 
@@ -65,8 +66,9 @@ func main() {
 		delete(v.Body, "attributes")
 		v.Method = "POST"
 		for _, t := range idMapping[v.Type] {
-			v.Body[t] = "@{" + v.Body.s(t) + "}"
+			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
 		}
+		cleanUpObjects(&v)
 		// Create compound request element
 		cRequest.CompRequest = append(cRequest.CompRequest, v)
 	}
@@ -75,6 +77,37 @@ func main() {
 	if _, err = f.Write(data); err != nil {
 		panic(err)
 	}
+}
+
+// removes all "not creatable" fields from given sObject
+func cleanUpObjects(obj *sObject) {
+
+	// Get the object description
+	url := baseurl + obj.Type + "/describe"
+	req, _ := http.NewRequest("GET", url, nil)
+	body := getSalesForce(req)
+
+	json.Unmarshal(body, &obj)
+
+	// var dat rawObject
+	//var dat map[string]map[string]map[string]interface{}
+	var dat map[string]interface{}
+	if err := json.Unmarshal(body, &dat); err != nil {
+		panic(err)
+	}
+
+	for _, item := range dat["fields"].([]interface{}) {
+		creatable := item.(map[string]interface{})["createable"].(bool)
+		name := item.(map[string]interface{})["name"].(string)
+		if !creatable {
+			log.Debug(name, " is not creatable")
+			delete(obj.Body, name)
+		}
+	}
+
+	// for k, item := range dat {
+	// 	log.Debug("Boohr: ", k, item)
+	// }
 }
 
 // getChilds gets all possible children of a given parent

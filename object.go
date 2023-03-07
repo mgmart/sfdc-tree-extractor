@@ -48,6 +48,11 @@ func (d rawObject) d(k string) rawObject {
 func (d rawObject) s(k string) string {
 	return d[k].(string)
 }
+
+func (d rawObject) a(k string) []interface{} {
+	return d[k].([]interface{})
+}
+
 type sObject struct {
 	Type   string    `json:"-"`
 	URL    string    `json:"url"`
@@ -62,3 +67,18 @@ type compRequest struct {
 	CompRequest []sObject `json:"compositeRequest"`
 }
 
+type MappingTable struct {
+	Object     string   `json:""`
+	References []string `json:""`
+}
+type Configuration struct {
+	SFDCurl      string       `json:""`
+	UserName     string       `json:""`
+	Password     string       `json:""`
+	ClientId     string       `json:""`
+	ClientSecret string       `json:""`
+	ExcludeList  []string     `json:""`
+	IncludeList  []string     `json:""`
+	LogLevel     string       `json:""`
+	Mapping      MappingTable `json:""`
+}
