@@ -12,13 +12,13 @@ func getBearerToken() string {
 		"response_type": {"code"},
 		"format":        {"json"},
 		"grant_type":    {"password"},
-		"client_id":     {clientId},
-		"client_secret": {clientSecret},
-		"username":      {userName},
-		"password":      {password},
+		"client_id":     {config.ClientId},
+		"client_secret": {config.ClientSecret},
+		"username":      {config.UserName},
+		"password":      {config.Password},
 	}
 
-	burl := sfdcurl + "/services/oauth2/token" + "?" + params.Encode()
+	burl := config.SFDCurl + "/services/oauth2/token" + "?" + params.Encode()
 
 	req, _ := http.NewRequest("POST", burl, nil)
 	body := getSalesForce(req)

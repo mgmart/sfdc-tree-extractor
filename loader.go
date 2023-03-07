@@ -12,16 +12,30 @@ import (
 
 func main() {
 
+	// TODO: make this configurable
 	log.Level = log.LevelDebug
 	log.Info("sandbox-loader starting ...")
 	// TODO: use composite API to limit number of API calls
-	// TODO: use insertTree to get relationships automatically
+	// DONE: use insertTree to get relationships automatically
 	// DONE: build include-list support
-	// TODO: create & use a configuration file
+	// DONE: create & use a configuration file
 	// DONE: implement proper authentication
 	// DONE: link e.g. calculation not only to account but also to contract
 	// DONE: create graph of objects
 	// DONE: load graph into SB (can be done by Postman or so ...)
+
+	// Open config
+	configFile, err := os.Open("config.json")
+	// if  os.Open returns an error then handle it
+	if err != nil {
+		log.Error("Open Config File: ", err)
+	}
+
+	// defer the closing of our jsonFile so that we can parse it later on
+	defer configFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(configFile)
+	json.Unmarshal(byteValue, &config)
 
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
@@ -39,7 +53,7 @@ func main() {
 	// Create compound request element
 	for _, v := range childs {
 		log.Debug("Create compound: ", v.Type)
-		for _, t := range idMapping[v.Type] {
+		for _, t := range config.Mapping[v.Type] {
 			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
 		}
 		cleanUpObjects(&v)
@@ -47,6 +61,8 @@ func main() {
 
 		cRequest.CompRequest = append(cRequest.CompRequest, v)
 	}
+
+	//create or open file
 	graph := compGraphs{Graphs: []compRequest{cRequest}}
 	data, _ := json.MarshalIndent(graph, "", " ")
 
@@ -60,6 +76,7 @@ func main() {
 	if _, err = f.Write(data); err != nil {
 		panic(err)
 	}
+
 }
 
 // reorders Object slice according to
@@ -67,7 +84,7 @@ func main() {
 func reorderObjects(objs []sObject) []sObject {
 	var orderedObjs []sObject
 
-	for _, k := range includeList {
+	for _, k := range config.IncludeList {
 		for _, o := range objs {
 			if o.Type == k {
 				orderedObjs = append(orderedObjs, o)
@@ -81,7 +98,7 @@ func reorderObjects(objs []sObject) []sObject {
 func cleanUpObjects(obj *sObject) {
 
 	// Get the object description
-	url := baseurl + obj.Type + "/describe"
+	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + obj.Type + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 
@@ -112,7 +129,7 @@ func cleanUpObjects(obj *sObject) {
 func getChilds(oType string, objc string) []sObject {
 	// DONE: return the according result
 	// Getting all possible types which can be a child
-	url := baseurl + oType + "/describe"
+	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + oType + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var obj ObjectDescription
@@ -129,13 +146,13 @@ func getChilds(oType string, objc string) []sObject {
 	var childs []sObject
 	for _, v := range obj.Childs {
 		if v.Name != "" {
-			switch includeList == nil {
+			switch config.IncludeList == nil {
 			case true:
-				if !slices.Contains(excludeList, v.Obj) {
+				if !slices.Contains(config.ExcludeList, v.Obj) {
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			case false:
-				if slices.Contains(includeList, v.Obj) {
+				if slices.Contains(config.IncludeList, v.Obj) {
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			}
@@ -147,7 +164,7 @@ func getChilds(oType string, objc string) []sObject {
 // getChildOjects gets all objects of a given type which have a SalesForce
 // objectId in a given field
 func getChildObjects(objId string, tpe string, nme string) []sObject {
-	url := queryurl + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
+	url := config.SFDCurl + "/services/data/v57.0/query?q=" + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var result []sObject
@@ -156,7 +173,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	json.Unmarshal(body, &res)
 
 	for _, v := range res.Records {
-		url := sfdcurl + v.Attributes.URL
+		url := config.SFDCurl + v.Attributes.URL
 		req, _ := http.NewRequest("GET", url, nil)
 		body := getSalesForce(req)
 
@@ -179,7 +196,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 // structure given a sObjectId
 func getAccount(accO string) sObject {
 
-	url := baseurl + "Account/" + accO
+	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + "Account/" + accO
 	req, _ := http.NewRequest("GET", url, nil)
 
 	body := getSalesForce(req)

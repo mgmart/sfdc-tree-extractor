@@ -75,13 +75,13 @@ type MappingTable struct {
 	References []string `json:""`
 }
 type Configuration struct {
-	SFDCurl      string       `json:""`
-	UserName     string       `json:""`
-	Password     string       `json:""`
-	ClientId     string       `json:""`
-	ClientSecret string       `json:""`
-	ExcludeList  []string     `json:""`
-	IncludeList  []string     `json:""`
-	LogLevel     string       `json:""`
-	Mapping      MappingTable `json:""`
+	SFDCurl      string              `json:"sfdcurl"`
+	UserName     string              `json:"username"`
+	Password     string              `json:"password"`
+	ClientId     string              `json:"clientid"`
+	ClientSecret string              `json:"clientsecret"`
+	ExcludeList  []string            `json:"excludelist"`
+	IncludeList  []string            `json:"includelist"`
+	LogLevel     string              `json:"loglevel"`
+	Mapping      map[string][]string `json:"mapping"`
 }

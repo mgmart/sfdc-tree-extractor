@@ -1,0 +1,34 @@
+{
+    "sfdcurl":  "<<baseurl>>",
+    "username": "<<username>>",
+    "password": "<<password>>",
+    "clientid": "<<client-id>>",
+    "clientsecret": "<<client-secret>>",
+    "excludelist": [
+	"ActivityHistory",
+	"AttachedContentDocument",
+	"CombinedAttachment",
+	"NoteAndAttachment",
+	"OpenActivity",
+	"ProcessInstanceHistory"
+    ],
+    "includelist": [
+	"Account",
+	"Contact",
+	"Opportunity",
+	"Case"
+    ],
+    "loglevel": "Debug",
+    "mapping": {
+	"Case": [
+	    "ContactId",
+	    "AccountId"
+	],
+	"Contact": [
+	    "AccountId"
+	],
+	"Opportunity": [
+	    "AccountId"
+	]
+    }
+}
