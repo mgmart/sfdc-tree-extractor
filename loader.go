@@ -175,58 +175,6 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	return result
 }
 
-// getContacts returns all Contacts which have a relationship
-// with a given account
-// TODO: return the contacts in a propriet manner
-func getContacts(acc string) {
-	url := queryurl + "SELECT+id,+name+from+Contact+where+AccountId+=+'" + acc + "'"
-	req, _ := http.NewRequest("GET", url, nil)
-	body := getSalesForce(req)
-	var contacts QueryResult
-	json.Unmarshal(body, &contacts)
-
-	for _, v := range contacts.Records {
-		log.Debug("URL of Contact: ", v.Attributes.URL)
-	}
-}
-
-// getContact returns a contact by a given sObjectId
-// as a map
-func getContact(cntO string) map[string]interface{} {
-
-	url := baseurl + "Contact/" + cntO
-	req, _ := http.NewRequest("GET", url, nil)
-	body := getSalesForce(req)
-	var acc Account
-	json.Unmarshal(body, &acc)
-
-	var dat map[string]interface{}
-
-	if err := json.Unmarshal(body, &dat); err != nil {
-		panic(err)
-	}
-	return dat
-}
-
-// getOpportunity returns a Opportunity by a
-// given sObjectId
-// TODO: change the return from struct to map
-func getOpportunity(oppO string) Opportunity {
-
-	url := baseurl + "Opportunity/" + oppO
-	req, _ := http.NewRequest("GET", url, nil)
-	body := getSalesForce(req)
-	var opp Opportunity
-	json.Unmarshal(body, &opp)
-
-	log.Debug("Id      : ", opp.Id)
-	log.Debug("Name    : ", opp.Name)
-	log.Debug("Type    : ", opp.Type)
-	log.Debug("Account : ", opp.AccountId)
-
-	return opp
-}
-
 // getAccount returns a account as sObject
 // structure given a sObjectId
 func getAccount(accO string) sObject {
