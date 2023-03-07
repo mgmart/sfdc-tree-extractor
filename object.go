@@ -62,8 +62,11 @@ type sObject struct {
 	Childs []sObject `json:"-"`
 }
 
+type compGraphs struct {
+	Graphs []compRequest `json:"graphs"`
+}
 type compRequest struct {
-	GraphId     string    `json:"graphId"` // : "1",
+	GraphId     string    `json:"graphId"`
 	CompRequest []sObject `json:"compositeRequest"`
 }
 

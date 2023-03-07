@@ -14,6 +14,13 @@ var bearer = "Bearer " + "<<access-token>>"
 
 var excludeList = []string{"ActivityHistory", "AttachedContentDocument", "CombinedAttachment", "NoteAndAttachment", "OpenActivity", "ProcessInstanceHistory"}
 
-var includeList = []string{"Case", "Contact", "Opportunity", "Account"}
+// var includeList []string
+var includeList = []string{"Account", "Contact", "Opportunity", "Case"}
+
 var calls = 0
 
+var idMapping = map[string][]string{
+	"Contact":     {"AccountId"},
+	"Case":        {"ContactId", "AccountId"},
+	"Opportunity": {"AccountId"},
+}

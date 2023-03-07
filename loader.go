@@ -28,20 +28,27 @@ func main() {
 
 	account := getAccount("0017Q00000NyD8jQAF")
 	cleanUpObjects(&account)
-	// for k, v := range account.Body {
-	// 	log.Debug("Key    : ", k)
-	// 	log.Debug("Value  : ", v)
-	// }
-	// log.Debug("Account: ", account)
-	childs := getChilds(account.Type, account.Id)
 
-	// Cleanup IDs
-	var idMapping map[string][]string
-	idMapping = map[string][]string{
-		"Contact":     {"AccountId"},
-		"Case":        {"ContactId", "AccountId"},
-		"Opportunity": {"AccountId"},
+	account.Method = "POST"
+	cRequest := compRequest{GraphId: "1"}
+	cRequest.CompRequest = append(cRequest.CompRequest, account)
+
+	childs := getChilds(account.Type, account.Id)
+	childs = reorderObjects(childs)
+
+	// Create compound request element
+	for _, v := range childs {
+		log.Debug("Create compound: ", v.Type)
+		for _, t := range idMapping[v.Type] {
+			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
+		}
+		cleanUpObjects(&v)
+		v.Method = "POST"
+
+		cRequest.CompRequest = append(cRequest.CompRequest, v)
 	}
+	graph := compGraphs{Graphs: []compRequest{cRequest}}
+	data, _ := json.MarshalIndent(graph, "", " ")
 
 	//create or open file
 	f, err := os.OpenFile("test.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
@@ -49,34 +56,25 @@ func main() {
 		panic(err)
 	}
 	defer f.Close()
-
-	for _, v := range childs {
-		// log.Debug("   child: " + v.Id + " - " + v.URL)
-		account.Childs = append(account.Childs, v)
-	}
-	log.Debug("Length of Childs: ", len(account.Childs))
-
-	cRequest := compRequest{GraphId: "1"}
-
-	delete(account.Body, "attributes")
-	account.Method = "POST"
-	cRequest.CompRequest = append(cRequest.CompRequest, account)
-
-	for _, v := range childs {
-		delete(v.Body, "attributes")
-		v.Method = "POST"
-		for _, t := range idMapping[v.Type] {
-			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
-		}
-		cleanUpObjects(&v)
-		// Create compound request element
-		cRequest.CompRequest = append(cRequest.CompRequest, v)
-	}
-	log.Debug("Length of cRequest: ", len(cRequest.CompRequest))
-	data, _ := json.MarshalIndent(cRequest, "", " ")
+	// write to json file
 	if _, err = f.Write(data); err != nil {
 		panic(err)
 	}
+}
+
+// reorders Object slice according to
+// configured order
+func reorderObjects(objs []sObject) []sObject {
+	var orderedObjs []sObject
+
+	for _, k := range includeList {
+		for _, o := range objs {
+			if o.Type == k {
+				orderedObjs = append(orderedObjs, o)
+			}
+		}
+	}
+	return orderedObjs
 }
 
 // removes all "not creatable" fields from given sObject
@@ -87,10 +85,6 @@ func cleanUpObjects(obj *sObject) {
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 
-	json.Unmarshal(body, &obj)
-
-	// var dat rawObject
-	//var dat map[string]map[string]map[string]interface{}
 	var dat map[string]interface{}
 	if err := json.Unmarshal(body, &dat); err != nil {
 		panic(err)
@@ -100,20 +94,23 @@ func cleanUpObjects(obj *sObject) {
 		creatable := item.(map[string]interface{})["createable"].(bool)
 		name := item.(map[string]interface{})["name"].(string)
 		if !creatable {
-			log.Debug(name, " is not creatable")
 			delete(obj.Body, name)
 		}
 	}
+	delete(obj.Body, "attributes")
 
-	// for k, item := range dat {
-	// 	log.Debug("Boohr: ", k, item)
-	// }
+	// only non nil fields are needed in json file
+	for k, v := range obj.Body {
+		if v == nil {
+			delete(obj.Body, k)
+		}
+	}
 }
 
 // getChilds gets all possible children of a given parent
 // exlude and include lists are regarded
-// DONE: return the according result
 func getChilds(oType string, objc string) []sObject {
+	// DONE: return the according result
 	// Getting all possible types which can be a child
 	url := baseurl + oType + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
@@ -129,21 +126,16 @@ func getChilds(oType string, objc string) []sObject {
 
 	// Query each type objects to get the childs of this type
 	// TODO: Selection of include List could be less cryptic
-
-	log.Debug("Getting Childs for: ", oType)
-	log.Debug("Calls so far: ", calls)
 	var childs []sObject
 	for _, v := range obj.Childs {
 		if v.Name != "" {
 			switch includeList == nil {
 			case true:
-				// log.Debug("Catching all objects ...")
 				if !slices.Contains(excludeList, v.Obj) {
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			case false:
 				if slices.Contains(includeList, v.Obj) {
-					// log.Debug("Catching selected type ...")
 					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 				}
 			}
