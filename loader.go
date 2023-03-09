@@ -5,44 +5,29 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 
+	"github.com/brianvoe/gofakeit/v6"
 	"github.com/cloudflare/cfssl/log"
 	"golang.org/x/exp/slices"
 )
 
 func main() {
 
-	// TODO: make this configurable
+	// TODO: process cmdline arguments
+	// TODO: make LogLevel configurable
 	log.Level = log.LevelDebug
 	log.Info("sandbox-loader starting ...")
-	// TODO: use composite API to limit number of API calls
-	// DONE: use insertTree to get relationships automatically
-	// DONE: build include-list support
-	// DONE: create & use a configuration file
-	// DONE: implement proper authentication
-	// DONE: link e.g. calculation not only to account but also to contract
-	// DONE: create graph of objects
-	// DONE: load graph into SB (can be done by Postman or so ...)
 
-	// Open config
-	configFile, err := os.Open("config.json")
-	// if  os.Open returns an error then handle it
-	if err != nil {
-		log.Error("Open Config File: ", err)
-	}
-
-	// defer the closing of our jsonFile so that we can parse it later on
-	defer configFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(configFile)
-	json.Unmarshal(byteValue, &config)
+	getConfiguration()
 
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
 
+	// TODO: Get account from commandline
 	account := getAccount("0017Q00000NyD8jQAF")
 	cleanUpObjects(&account)
-
+	pseudomyse(&account)
 	account.Method = "POST"
 	cRequest := compRequest{GraphId: "1"}
 	cRequest.CompRequest = append(cRequest.CompRequest, account)
@@ -57,6 +42,7 @@ func main() {
 			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
 		}
 		cleanUpObjects(&v)
+		pseudomyse(&v)
 		v.Method = "POST"
 
 		cRequest.CompRequest = append(cRequest.CompRequest, v)
@@ -121,6 +107,50 @@ func cleanUpObjects(obj *sObject) {
 		if v == nil {
 			delete(obj.Body, k)
 		}
+	}
+}
+
+func pseudomyse(obj *sObject) {
+
+	switch obj.Type {
+	case "Account":
+		for key := range obj.Body {
+			switch key {
+			case "Name":
+				obj.Body["Name"] = gofakeit.Company()
+			case "Phone":
+				obj.Body["Phone"] = gofakeit.PhoneFormatted()
+			case "BillingCity":
+				obj.Body["BillingCity"] = gofakeit.City()
+			case "BillingState":
+				obj.Body["BillingState"] = gofakeit.State()
+			case "BillingStreet":
+				obj.Body["BillingStreet"] = gofakeit.Street()
+			case "Fax":
+				obj.Body["Fax"] = gofakeit.PhoneFormatted()
+			case "Website":
+				obj.Body["Website"] = gofakeit.URL()
+			case "AccountNumber":
+				obj.Body["AccountNumber"] = strconv.Itoa(gofakeit.Number(1111111, 9999999))
+			}
+		}
+	case "Contact":
+		for key := range obj.Body {
+			switch key {
+			case "FirstName":
+				obj.Body["FirstName"] = gofakeit.FirstName()
+			case "Phone":
+				obj.Body["Phone"] = gofakeit.PhoneFormatted()
+			case "LastName":
+				obj.Body["LastName"] = gofakeit.LastName()
+			case "Fax":
+				obj.Body["Fax"] = gofakeit.PhoneFormatted()
+			case "Email":
+				obj.Body["Email"] = gofakeit.Email()
+
+			}
+		}
+
 	}
 }
 
@@ -237,6 +267,7 @@ func getSalesForce(req *http.Request) []byte {
 
 	switch resp.StatusCode {
 	case 401:
+		log.Debug("Error with Response: ", resp.Status)
 		os.Exit(1)
 	}
 	return body
