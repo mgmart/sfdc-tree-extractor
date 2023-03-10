@@ -21,8 +21,14 @@ type ChildRelationship struct {
 	Field string `json:"field"`
 }
 
+type ObjectFields struct {
+	Name        string   `json:"name"`
+	ReferenceTo []string `json:"referenceTo"`
+}
+
 type ObjectDescription struct {
 	Childs []ChildRelationship `json:"childRelationships"`
+	Fields []ObjectFields      `json:"fields"`
 }
 
 type InvalidRequestResponse struct {
@@ -80,7 +86,6 @@ type Configuration struct {
 	Password     string              `json:"password"`
 	ClientId     string              `json:"clientid"`
 	ClientSecret string              `json:"clientsecret"`
-	ExcludeList  []string            `json:"excludelist"`
 	IncludeList  []string            `json:"includelist"`
 	LogLevel     string              `json:"loglevel"`
 	Mapping      map[string][]string `json:"mapping"`

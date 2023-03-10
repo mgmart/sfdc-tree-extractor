@@ -13,10 +13,10 @@
 	"ProcessInstanceHistory"
     ],
     "includelist": [
-	"Account",
+	"Campaign",
 	"Contact",
-	"Opportunity",
-	"Case"
+	"CampaignMember",
+	"Opportunity"
     ],
     "loglevel": "Debug",
     "mapping": {

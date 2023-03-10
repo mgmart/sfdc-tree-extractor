@@ -4,7 +4,6 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/brianvoe/gofakeit/v6"
 	"github.com/cloudflare/cfssl/log"
 )
 
@@ -29,20 +28,4 @@ func IsEmpty(object interface{}) (bool, error) {
 		}
 	}
 	return false, errors.New("Check not implementend for this struct")
-}
-
-func randomise() {
-	// Create structs with random injected data
-	log.Level = log.LevelDebug
-
-	// log.Debug(gofakeit.Name())
-	// log.Debug(gofakeit.Email())
-	// log.Debug(gofakeit.StreetName(), " ", gofakeit.StreetNumber())
-	// log.Debug(gofakeit.Zip())
-	// log.Debug(gofakeit.City())
-	// log.Debug(gofakeit.Contact())
-
-	var cmp FakeCompany
-	gofakeit.Struct(&cmp)
-	log.Debug(cmp)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -19,13 +20,22 @@ func main() {
 	log.Level = log.LevelDebug
 	log.Info("sandbox-loader starting ...")
 
+	objectPtr := flag.String("object", "0017Q00000NyD8jQAF", "Rootobject to retrieve")
+	typePtr := flag.String("type", "Account", "The type of object")
+
+	flag.Parse()
+
+	log.Debug("object: ", *objectPtr)
+	log.Debug("type: ", *typePtr)
+
 	getConfiguration()
 
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
 
 	// TODO: Get account from commandline
-	account := getAccount("0017Q00000NyD8jQAF")
+	// account := getAccount("0017Q00000NyD8jQAF")
+	account := getRoot(*objectPtr, *typePtr)
 	cleanUpObjects(&account)
 	pseudomyse(&account)
 	account.Method = "POST"
@@ -172,21 +182,30 @@ func getChilds(oType string, objc string) []sObject {
 	}
 
 	// Query each type objects to get the childs of this type
-	// TODO: Selection of include List could be less cryptic
 	var childs []sObject
 	for _, v := range obj.Childs {
+		if oType == "CampaignMember" || oType == "Campaign" {
+			// log.Debug("Child is :", v.Obj)
+		}
 		if v.Name != "" {
-			switch config.IncludeList == nil {
-			case true:
-				if !slices.Contains(config.ExcludeList, v.Obj) {
-					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
-				}
-			case false:
-				if slices.Contains(config.IncludeList, v.Obj) {
-					childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
-				}
+			if slices.Contains(config.IncludeList, v.Obj) {
+				// log.Debug("Getting children: ", v.Obj, " - ", oType)
+				childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
 			}
 		}
+	}
+
+	// get all childs which are not referenced as childs
+	// TODO: incorporate includelist
+	for _, v := range obj.Fields {
+		if len(v.ReferenceTo) > 0 {
+			for _, w := range v.ReferenceTo {
+				log.Debug("Getting children for: ", oType, ":", w, " - ", v.Name)
+				// TODO: objc has to be changed to value of field v.Name
+				childs = append(childs, getChildObjects(objc, oType, v.Name)...)
+			}
+		}
+
 	}
 	return childs
 }
@@ -194,14 +213,19 @@ func getChilds(oType string, objc string) []sObject {
 // getChildOjects gets all objects of a given type which have a SalesForce
 // objectId in a given field
 func getChildObjects(objId string, tpe string, nme string) []sObject {
+	// Query for child records
 	url := config.SFDCurl + "/services/data/v57.0/query?q=" + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var result []sObject
 
+	if tpe == "CampaignMember" && nme == "ContactId" {
+		log.Debug(url)
+	}
 	var res QueryResult
 	json.Unmarshal(body, &res)
 
+	// Result is a list of records, now get each one of them
 	for _, v := range res.Records {
 		url := config.SFDCurl + v.Attributes.URL
 		req, _ := http.NewRequest("GET", url, nil)
@@ -212,12 +236,17 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 			panic(err)
 		}
 
-		result = append(result, sObject{
+		cObj := sObject{
 			Type: dat.d("attributes").s("type"),
 			URL:  "/services/data/v57.0/sobjects/" + dat.d("attributes").s("type") + "/",
 			Body: dat,
 			Id:   dat.s("Id"),
-		})
+		}
+		result = append(result, cObj)
+		if tpe == "CampaignMember" || tpe == "Campaign" {
+			log.Debug("addRecurs: ", tpe, " - ", cObj.Id)
+			getChilds(tpe, cObj.Id)
+		}
 	}
 	return result
 }
@@ -239,6 +268,27 @@ func getAccount(accO string) sObject {
 		Body: dat,
 		Id:   dat.s("Id"),
 		URL:  "/services/data/v57.0/sobjects/Account",
+	}
+}
+
+// getAccount returns a account as sObject
+// structure given a sObjectId
+func getRoot(obj, tpe string) sObject {
+
+	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + tpe + "/" + obj
+	req, _ := http.NewRequest("GET", url, nil)
+
+	body := getSalesForce(req)
+
+	var dat rawObject
+	if err := json.Unmarshal(body, &dat); err != nil {
+		log.Error("Unmarshalling of root object failed: ", obj, tpe)
+		panic(err)
+	}
+	return sObject{Type: dat.d("attributes").s("type"),
+		Body: dat,
+		Id:   dat.s("Id"),
+		URL:  "/services/data/v57.0/sobjects/" + tpe,
 	}
 }
 
