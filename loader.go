@@ -45,7 +45,9 @@ func main() {
 	for _, v := range childs {
 		log.Info("Create compound: ", v.Type)
 		for _, t := range config.Mapping[v.Type] {
-			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
+			if v.Body[t] != nil {
+				v.Body[t] = "@{" + v.Body.s(t) + ".id}"
+			}
 		}
 		cleanUpObjects(&v)
 		pseudomyse(&v)
@@ -57,9 +59,11 @@ func main() {
 	//create or open file
 	graph := compGraphs{Graphs: []compRequest{cRequest}}
 	data, _ := json.MarshalIndent(graph, "", " ")
+	log.Info("Writing output to file ...")
+	log.Info("Elements to write: ", len(cRequest.CompRequest))
 
 	//create or open file
-	f, err := os.OpenFile("test.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile("compound-request-body.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -142,7 +146,6 @@ func getChilds(objc sObject) {
 	}
 
 	// get all childs which are not referenced as childs
-	// TODO: incorporate includelist
 	for _, v := range objcd.Fields {
 		if len(v.ReferenceTo) > 0 {
 			for _, w := range v.ReferenceTo {
@@ -153,6 +156,7 @@ func getChilds(objc sObject) {
 						o := getRoot(obId, w)
 						visited = append(visited, obId)
 						childs = append(childs, o)
+						getChilds(o)
 					}
 				}
 			}
@@ -193,7 +197,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 			Id:   dat.s("Id"),
 		}
 		result = append(result, cObj)
-		if tpe == "CampaignMember" || tpe == "Campaign" {
+		if slices.Contains(config.IncludeList, cObj.Type) {
 			visited = append(visited, cObj.Id)
 			getChilds(cObj)
 		}

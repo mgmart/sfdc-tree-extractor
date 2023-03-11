@@ -22,6 +22,11 @@
 	],
 	"Opportunity": [
 	    "AccountId"
+	],
+	"CampaignMember": [
+	    "ContactId",
+	    "CampaignId",
+	    "LeadId"
 	]
     }
 }

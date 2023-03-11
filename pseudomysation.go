@@ -8,6 +8,8 @@ import (
 
 func pseudomyse(obj *sObject) {
 
+	// log.Debug("Obj before: ", obj)
+
 	switch obj.Type {
 	case "Account":
 		for key := range obj.Body {
@@ -46,6 +48,41 @@ func pseudomyse(obj *sObject) {
 
 			}
 		}
+	case "Campaign":
+		for key := range obj.Body {
+			switch key {
+			case "Name":
+				obj.Body["Name"] = gofakeit.SentenceSimple()
+			}
+		}
 
+	case "Lead":
+		for key := range obj.Body {
+			switch key {
+			case "Company":
+				obj.Body["Company"] = gofakeit.Company()
+			case "FirstName":
+				obj.Body["FirstName"] = gofakeit.FirstName()
+			case "City":
+				obj.Body["City"] = gofakeit.City()
+			case "LastName":
+				obj.Body["LastName"] = gofakeit.LastName()
+			case "State":
+				obj.Body["State"] = gofakeit.StateAbr()
+			case "Email":
+				obj.Body["Email"] = gofakeit.Email()
+			case "Phone":
+				obj.Body["Phone"] = gofakeit.PhoneFormatted()
+			case "Country":
+				obj.Body["Country"] = gofakeit.Country()
+			case "Street":
+				obj.Body["Street"] = gofakeit.Street()
+			case "Fax":
+				obj.Body["Fax"] = gofakeit.PhoneFormatted()
+
+			}
+		}
 	}
+	// log.Debug("Obj after: ", obj)
+
 }
