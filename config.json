@@ -15,6 +15,7 @@
     "includelist": [
 	"Campaign",
 	"Contact",
+	"Lead",
 	"CampaignMember",
 	"Opportunity"
     ],

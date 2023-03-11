@@ -36,13 +36,16 @@ func main() {
 	// TODO: Get account from commandline
 	// account := getAccount("0017Q00000NyD8jQAF")
 	account := getRoot(*objectPtr, *typePtr)
+	//	childs = append(childs, account)
+	//visited = append(visited, account.Id)
+
 	cleanUpObjects(&account)
 	pseudomyse(&account)
 	account.Method = "POST"
 	cRequest := compRequest{GraphId: "1"}
-	cRequest.CompRequest = append(cRequest.CompRequest, account)
+	// cRequest.CompRequest = append(cRequest.CompRequest, account)
 
-	childs := getChilds(account.Type, account.Id)
+	getChilds(account)
 	childs = reorderObjects(childs)
 
 	// Create compound request element
@@ -72,6 +75,7 @@ func main() {
 	if _, err = f.Write(data); err != nil {
 		panic(err)
 	}
+	log.Info("Calls made: ", counter)
 
 }
 
@@ -92,22 +96,10 @@ func reorderObjects(objs []sObject) []sObject {
 
 // removes all "not creatable" fields from given sObject
 func cleanUpObjects(obj *sObject) {
-
-	// Get the object description
-	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + obj.Type + "/describe"
-	req, _ := http.NewRequest("GET", url, nil)
-	body := getSalesForce(req)
-
-	var dat map[string]interface{}
-	if err := json.Unmarshal(body, &dat); err != nil {
-		panic(err)
-	}
-
-	for _, item := range dat["fields"].([]interface{}) {
-		creatable := item.(map[string]interface{})["createable"].(bool)
-		name := item.(map[string]interface{})["name"].(string)
-		if !creatable {
-			delete(obj.Body, name)
+	od := getObjectDescription(obj)
+	for _, item := range od.Fields {
+		if !item.Createable {
+			delete(obj.Body, item.Name)
 		}
 	}
 	delete(obj.Body, "attributes")
@@ -118,6 +110,26 @@ func cleanUpObjects(obj *sObject) {
 			delete(obj.Body, k)
 		}
 	}
+}
+
+// getObjectDescription retrieves and stores a SalesForce
+// Objectdescription for later retrieval
+func getObjectDescription(obj *sObject) ObjectDescription {
+
+	if des, ok := ods[obj.Type]; ok {
+		return des
+	}
+	// Get the object description
+	var od ObjectDescription
+	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + obj.Type + "/describe"
+	req, _ := http.NewRequest("GET", url, nil)
+	body := getSalesForce(req)
+
+	if err := json.Unmarshal(body, &od); err != nil {
+		panic(err)
+	}
+	ods[obj.Type] = od
+	return od
 }
 
 func pseudomyse(obj *sObject) {
@@ -166,48 +178,37 @@ func pseudomyse(obj *sObject) {
 
 // getChilds gets all possible children of a given parent
 // exlude and include lists are regarded
-func getChilds(oType string, objc string) []sObject {
-	// DONE: return the according result
-	// Getting all possible types which can be a child
-	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + oType + "/describe"
-	req, _ := http.NewRequest("GET", url, nil)
-	body := getSalesForce(req)
-	var obj ObjectDescription
-	json.Unmarshal(body, &obj)
+func getChilds(objc sObject) {
+	objcd := getObjectDescription(&objc) // Query each type objects to get the childs of this type
 
-	var dat map[string]interface{}
-
-	if err := json.Unmarshal(body, &dat); err != nil {
-		panic(err)
-	}
-
-	// Query each type objects to get the childs of this type
-	var childs []sObject
-	for _, v := range obj.Childs {
-		if oType == "CampaignMember" || oType == "Campaign" {
-			// log.Debug("Child is :", v.Obj)
-		}
+	for _, v := range objcd.Childs {
 		if v.Name != "" {
 			if slices.Contains(config.IncludeList, v.Obj) {
-				// log.Debug("Getting children: ", v.Obj, " - ", oType)
-				childs = append(childs, getChildObjects(objc, v.Obj, v.Field)...)
+				for _, c := range getChildObjects(objc.Id, v.Obj, v.Field) {
+					childs = append(childs, c)
+					visited = append(visited, c.Id)
+				}
 			}
 		}
 	}
 
 	// get all childs which are not referenced as childs
 	// TODO: incorporate includelist
-	for _, v := range obj.Fields {
+	for _, v := range objcd.Fields {
 		if len(v.ReferenceTo) > 0 {
 			for _, w := range v.ReferenceTo {
-				log.Debug("Getting children for: ", oType, ":", w, " - ", v.Name)
-				// TODO: objc has to be changed to value of field v.Name
-				childs = append(childs, getChildObjects(objc, oType, v.Name)...)
+				obId := objc.Body.s(v.Name)
+				if slices.Contains(config.IncludeList, w) && obId != "" {
+
+					if !slices.Contains(visited, obId) {
+						o := getRoot(obId, w)
+						visited = append(visited, obId)
+						childs = append(childs, o)
+					}
+				}
 			}
 		}
-
 	}
-	return childs
 }
 
 // getChildOjects gets all objects of a given type which have a SalesForce
@@ -219,14 +220,14 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	body := getSalesForce(req)
 	var result []sObject
 
-	if tpe == "CampaignMember" && nme == "ContactId" {
-		log.Debug(url)
-	}
 	var res QueryResult
 	json.Unmarshal(body, &res)
 
 	// Result is a list of records, now get each one of them
 	for _, v := range res.Records {
+		if slices.Contains(visited, v.Id) {
+			continue
+		}
 		url := config.SFDCurl + v.Attributes.URL
 		req, _ := http.NewRequest("GET", url, nil)
 		body := getSalesForce(req)
@@ -244,8 +245,8 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 		}
 		result = append(result, cObj)
 		if tpe == "CampaignMember" || tpe == "Campaign" {
-			log.Debug("addRecurs: ", tpe, " - ", cObj.Id)
-			getChilds(tpe, cObj.Id)
+			visited = append(visited, cObj.Id)
+			getChilds(cObj)
 		}
 	}
 	return result
@@ -279,11 +280,10 @@ func getRoot(obj, tpe string) sObject {
 	req, _ := http.NewRequest("GET", url, nil)
 
 	body := getSalesForce(req)
-
 	var dat rawObject
 	if err := json.Unmarshal(body, &dat); err != nil {
 		log.Error("Unmarshalling of root object failed: ", obj, tpe)
-		panic(err)
+		return sObject{}
 	}
 	return sObject{Type: dat.d("attributes").s("type"),
 		Body: dat,
@@ -300,9 +300,9 @@ func getSalesForce(req *http.Request) []byte {
 	calls = calls + 1
 	client := &http.Client{}
 	resp, err := client.Do(req)
-
+	counter += 1
 	if err != nil {
-		log.Debug("Error on response.\n[ERROR] -", err)
+		log.Error("Error on response.\n[ERROR] -", err)
 	}
 
 	defer resp.Body.Close()
@@ -310,14 +310,14 @@ func getSalesForce(req *http.Request) []byte {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Debug("Error while reading the response bytes:", err)
+		log.Error("Error while reading the response bytes:", err)
 	}
 
 	// log.Debug("GetSalesForce", resp.Status)
 
 	switch resp.StatusCode {
 	case 401:
-		log.Debug("Error with Response: ", resp.Status)
+		log.Error("Error with Response: ", resp.Status)
 		os.Exit(1)
 	}
 	return body

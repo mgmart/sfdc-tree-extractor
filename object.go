@@ -24,9 +24,11 @@ type ChildRelationship struct {
 type ObjectFields struct {
 	Name        string   `json:"name"`
 	ReferenceTo []string `json:"referenceTo"`
+	Createable  bool     `json:"createable"`
 }
 
 type ObjectDescription struct {
+	Name   string              `json:"label"`
 	Childs []ChildRelationship `json:"childRelationships"`
 	Fields []ObjectFields      `json:"fields"`
 }
@@ -52,7 +54,11 @@ func (d rawObject) d(k string) rawObject {
 }
 
 func (d rawObject) s(k string) string {
-	return d[k].(string)
+	switch d[k].(type) {
+	case string:
+		return d[k].(string)
+	}
+	return ""
 }
 
 func (d rawObject) a(k string) []interface{} {
