@@ -4,14 +4,6 @@
     "password": "<<password>>",
     "clientid": "<<client-id>>",
     "clientsecret": "<<client-secret>>",
-    "excludelist": [
-	"ActivityHistory",
-	"AttachedContentDocument",
-	"CombinedAttachment",
-	"NoteAndAttachment",
-	"OpenActivity",
-	"ProcessInstanceHistory"
-    ],
     "includelist": [
 	"Campaign",
 	"Contact",

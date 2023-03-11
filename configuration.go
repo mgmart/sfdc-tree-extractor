@@ -2,20 +2,18 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 
 	"github.com/cloudflare/cfssl/log"
 )
 
+// reads "config.json" in current directory
+// to get the configuration which is declared
+// on package level
 func getConfiguration() bool {
 
 	// Open config
-	log.Level = log.LevelDebug
-	log.Debug("Before MistService")
-	fmt.Println("Ooops")
-
 	configFile, err := os.Open("config.json")
 
 	// if  os.Open returns an error then handle it

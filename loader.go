@@ -6,9 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 
-	"github.com/brianvoe/gofakeit/v6"
 	"github.com/cloudflare/cfssl/log"
 	"golang.org/x/exp/slices"
 )
@@ -33,24 +31,19 @@ func main() {
 	log.Info("Authenticate with SF")
 	bearer = "Bearer " + getBearerToken()
 
-	// TODO: Get account from commandline
-	// account := getAccount("0017Q00000NyD8jQAF")
 	account := getRoot(*objectPtr, *typePtr)
-	//	childs = append(childs, account)
-	//visited = append(visited, account.Id)
 
 	cleanUpObjects(&account)
 	pseudomyse(&account)
 	account.Method = "POST"
 	cRequest := compRequest{GraphId: "1"}
-	// cRequest.CompRequest = append(cRequest.CompRequest, account)
 
 	getChilds(account)
 	childs = reorderObjects(childs)
 
 	// Create compound request element
 	for _, v := range childs {
-		log.Debug("Create compound: ", v.Type)
+		log.Info("Create compound: ", v.Type)
 		for _, t := range config.Mapping[v.Type] {
 			v.Body[t] = "@{" + v.Body.s(t) + ".id}"
 		}
@@ -132,50 +125,6 @@ func getObjectDescription(obj *sObject) ObjectDescription {
 	return od
 }
 
-func pseudomyse(obj *sObject) {
-
-	switch obj.Type {
-	case "Account":
-		for key := range obj.Body {
-			switch key {
-			case "Name":
-				obj.Body["Name"] = gofakeit.Company()
-			case "Phone":
-				obj.Body["Phone"] = gofakeit.PhoneFormatted()
-			case "BillingCity":
-				obj.Body["BillingCity"] = gofakeit.City()
-			case "BillingState":
-				obj.Body["BillingState"] = gofakeit.State()
-			case "BillingStreet":
-				obj.Body["BillingStreet"] = gofakeit.Street()
-			case "Fax":
-				obj.Body["Fax"] = gofakeit.PhoneFormatted()
-			case "Website":
-				obj.Body["Website"] = gofakeit.URL()
-			case "AccountNumber":
-				obj.Body["AccountNumber"] = strconv.Itoa(gofakeit.Number(1111111, 9999999))
-			}
-		}
-	case "Contact":
-		for key := range obj.Body {
-			switch key {
-			case "FirstName":
-				obj.Body["FirstName"] = gofakeit.FirstName()
-			case "Phone":
-				obj.Body["Phone"] = gofakeit.PhoneFormatted()
-			case "LastName":
-				obj.Body["LastName"] = gofakeit.LastName()
-			case "Fax":
-				obj.Body["Fax"] = gofakeit.PhoneFormatted()
-			case "Email":
-				obj.Body["Email"] = gofakeit.Email()
-
-			}
-		}
-
-	}
-}
-
 // getChilds gets all possible children of a given parent
 // exlude and include lists are regarded
 func getChilds(objc sObject) {
@@ -252,27 +201,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	return result
 }
 
-// getAccount returns a account as sObject
-// structure given a sObjectId
-func getAccount(accO string) sObject {
-
-	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + "Account/" + accO
-	req, _ := http.NewRequest("GET", url, nil)
-
-	body := getSalesForce(req)
-
-	var dat rawObject
-	if err := json.Unmarshal(body, &dat); err != nil {
-		panic(err)
-	}
-	return sObject{Type: dat.d("attributes").s("type"),
-		Body: dat,
-		Id:   dat.s("Id"),
-		URL:  "/services/data/v57.0/sobjects/Account",
-	}
-}
-
-// getAccount returns a account as sObject
+// getRoot returns a account as sObject
 // structure given a sObjectId
 func getRoot(obj, tpe string) sObject {
 
