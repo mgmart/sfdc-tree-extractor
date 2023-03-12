@@ -1,10 +1,11 @@
 {
-    "sfdcurl":  "<<baseurl>>",
-    "username": "<<username>>",
-    "password": "<<password>>",
-    "clientid": "<<client-id>>",
-    "clientsecret": "<<client-secret>>",
+    "sfdcurl": <<base url>>
+    "username": <<username>>
+    "password": <<password & token >>    
+    "clientid": <<consumer id>>
+    "clientsecret": <<consumer secret>>
     "includelist": [
+	"Account",
 	"Campaign",
 	"Contact",
 	"Lead",
