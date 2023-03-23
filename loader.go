@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/cloudflare/cfssl/log"
 	"golang.org/x/exp/slices"
-
 )
 
 func main() {
@@ -70,19 +70,8 @@ func main() {
 	//create or open file
 	graph := compGraphs{Graphs: []compGraphRequest{cRequest}}
 	data, _ := json.MarshalIndent(graph, "", " ")
-	log.Info("Writing output to file ...")
 	log.Info("Elements to write: ", len(cRequest.CompRequest))
-
-	//create or open file
-	f, err := os.OpenFile("compound-request-body.json", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	// write to json file
-	if _, err = f.Write(data); err != nil {
-		panic(err)
-	}
+	writeFile(data, "composite-request-body.json")
 	log.Info("Calls made: ", counter)
 
 }
@@ -186,7 +175,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var result []sObject
-
+    var cR compRequest
 	var res QueryResult
 	json.Unmarshal(body, &res)
 
@@ -197,27 +186,59 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 		if slices.Contains(visited, v.Id) {
 			continue
 		}
-		url := config.SFDCurl + v.Attributes.URL
-		req, _ := http.NewRequest("GET", url, nil)
-		body := getSalesForce(req)
-
-		var dat rawObject
-		if err := json.Unmarshal(body, &dat); err != nil {
-			panic(err)
+		
+		newCR :=compositeRequest{
+			Method: "GET",
+			URL: v.Attributes.URL,
+			ReferenceId: v.Id,
 		}
 
-		cObj := sObject{
-			Type: dat.d("attributes").s("type"),
-			URL:  "/services/data/v57.0/sobjects/" + dat.d("attributes").s("type") + "/",
-			Body: dat,
-			Id:   dat.s("Id"),
-		}
-		result = append(result, cObj)
-		if slices.Contains(config.IncludeList, cObj.Type) {
-			visited = append(visited, cObj.Id)
-			getChilds(cObj)
-		}
+		cR.CompositeRequest = append(cR.CompositeRequest, newCR)
+		
+		// url := config.SFDCurl + v.Attributes.URL
+		// req, _ := http.NewRequest("GET", url, nil)
+		// body := getSalesForce(req)
+
+		// var dat rawObject
+		// if err := json.Unmarshal(body, &dat); err != nil {
+		// 	panic(err)
+		// }
+
+		// cObj := sObject{
+		// 	Type: dat.d("attributes").s("type"),
+		// 	URL:  "/services/data/v57.0/sobjects/" + dat.d("attributes").s("type") + "/",
+		// 	Body: dat,
+		// 	Id:   dat.s("Id"),
+		// }
+		// result = append(result, cObj)
+		// if slices.Contains(config.IncludeList, cObj.Type) {
+		// 	visited = append(visited, cObj.Id)
+		// 	getChilds(cObj)
+		// }
 	}
+	
+	comp, _ := json.MarshalIndent(cR, "", " ")
+	url = config.SFDCurl + "/services/data/v57.0/composite"
+	req, _ = http.NewRequest("POST", url, bytes.NewReader(comp))
+	req.Header.Add("Content-Type", "application/json")
+	body = getSalesForce(req)
+
+	var resp CompositeResponse
+	// log.Debug("Response: ", string(body))
+	if err := json.Unmarshal(body, &resp); err != nil {
+		panic(err)
+	}
+	
+	for _, dat := range resp.Objects {
+		dat.Type = dat.Body.d("attributes").s("type")
+		dat.URL = dat.Body.d("attributes").s("url")
+		log.Debug(dat.Id, ":", dat.Type)
+		result = append(result, dat)
+		if slices.Contains(config.IncludeList, dat.Type) {
+			visited = append(visited, dat.Id)
+			getChilds(dat)
+		}
+	}	
 	return result
 }
 
@@ -262,9 +283,12 @@ func getSalesForce(req *http.Request) []byte {
 		log.Error("Error while reading the response bytes:", err)
 	}
 
-	// log.Debug("GetSalesForce", resp.Status)
+	log.Debug("GetSalesForce", resp.Status)
 
 	switch resp.StatusCode {
+	case 400:
+		log.Error("Error with Response: ", string(body))
+		os.Exit(1)		
 	case 401:
 		log.Error("Error with Response: ", resp.Status)
 		os.Exit(1)

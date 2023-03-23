@@ -83,13 +83,17 @@ type compGraphRequest struct {
 }
 
 type compositeRequest struct {
-	method      string `json:"method"`
-	url         string `json:"url"`
-	referenceId string `json:"referenceId"`
+	Method      string `json:"method"`
+	URL         string `json:"url"`
+	ReferenceId string `json:"referenceId"`
+}
+
+type CompositeResponse struct {
+	Objects    []sObject  `json:"compositeResponse"`
 }
 
 type compRequest struct {
-	compositeRequest compositeRequest `json:"compositeRequest"`
+	CompositeRequest []compositeRequest `json:"compositeRequest"`
 }
 type MappingTable struct {
 	Object     string   `json:""`
