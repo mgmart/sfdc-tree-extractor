@@ -192,53 +192,31 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 			URL: v.Attributes.URL,
 			ReferenceId: v.Id,
 		}
-
-		cR.CompositeRequest = append(cR.CompositeRequest, newCR)
-		
-		// url := config.SFDCurl + v.Attributes.URL
-		// req, _ := http.NewRequest("GET", url, nil)
-		// body := getSalesForce(req)
-
-		// var dat rawObject
-		// if err := json.Unmarshal(body, &dat); err != nil {
-		// 	panic(err)
-		// }
-
-		// cObj := sObject{
-		// 	Type: dat.d("attributes").s("type"),
-		// 	URL:  "/services/data/v57.0/sobjects/" + dat.d("attributes").s("type") + "/",
-		// 	Body: dat,
-		// 	Id:   dat.s("Id"),
-		// }
-		// result = append(result, cObj)
-		// if slices.Contains(config.IncludeList, cObj.Type) {
-		// 	visited = append(visited, cObj.Id)
-		// 	getChilds(cObj)
-		// }
+		cR.CompositeRequest = append(cR.CompositeRequest, newCR)		
 	}
+	if len(cR.CompositeRequest) > 0 {
 	
-	comp, _ := json.MarshalIndent(cR, "", " ")
-	url = config.SFDCurl + "/services/data/v57.0/composite"
-	req, _ = http.NewRequest("POST", url, bytes.NewReader(comp))
-	req.Header.Add("Content-Type", "application/json")
-	body = getSalesForce(req)
+		comp, _ := json.MarshalIndent(cR, "", " ")
+		url = config.SFDCurl + "/services/data/v57.0/composite"
+		req, _ = http.NewRequest("POST", url, bytes.NewReader(comp))
+		req.Header.Add("Content-Type", "application/json")
+		body = getSalesForce(req)
 
-	var resp CompositeResponse
-	// log.Debug("Response: ", string(body))
-	if err := json.Unmarshal(body, &resp); err != nil {
-		panic(err)
-	}
+		var resp CompositeResponse
+		// log.Debug("Response: ", string(body))
+		if err := json.Unmarshal(body, &resp); err != nil {
+			panic(err)
+		}
 	
-	for _, dat := range resp.Objects {
-		dat.Type = dat.Body.d("attributes").s("type")
-		dat.URL = dat.Body.d("attributes").s("url")
-		log.Debug(dat.Id, ":", dat.Type)
-		result = append(result, dat)
-		if slices.Contains(config.IncludeList, dat.Type) {
+		for _, dat := range resp.Objects {
+			dat.Type = dat.Body.d("attributes").s("type")
+			dat.URL = dat.Body.d("attributes").s("url")
+			log.Debug(dat.Id, ":", dat.Type)
+			result = append(result, dat)
 			visited = append(visited, dat.Id)
 			getChilds(dat)
 		}
-	}	
+	}		
 	return result
 }
 
@@ -265,7 +243,7 @@ func getRoot(obj, tpe string) sObject {
 // getSalesForce returns the response for a given
 // API request to SalesForce as a byte-array
 func getSalesForce(req *http.Request) []byte {
-
+	// log.Debug(req.URL)
 	req.Header.Add("Authorization", bearer)
 	calls = calls + 1
 	client := &http.Client{}
