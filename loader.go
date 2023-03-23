@@ -9,6 +9,7 @@ import (
 
 	"github.com/cloudflare/cfssl/log"
 	"golang.org/x/exp/slices"
+
 )
 
 func main() {
@@ -18,9 +19,11 @@ func main() {
 	log.Level = log.LevelDebug
 	log.Info("sandbox-loader starting ...")
 
+	// cmdline flags
 	objectPtr := flag.String("object", "0017Q00000NyD8jQAF", "Rootobject to retrieve")
 	typePtr := flag.String("type", "Account", "The type of object")
-
+	noPseudo := flag.Bool("noPseudo", false, "switch off pseudomisation")
+	noCleanup := flag.Bool("noCleanup", false, "switch off deletion of empty fields")
 	flag.Parse()
 
 	log.Debug("object: ", *objectPtr)
@@ -32,11 +35,15 @@ func main() {
 	bearer = "Bearer " + getBearerToken()
 
 	account := getRoot(*objectPtr, *typePtr)
-
-	cleanUpObjects(&account)
-	pseudomyse(&account)
+	log.Debug("Root: ", account.Type, " : ", account.Id)
+	if !*noCleanup {
+		cleanUpObjects(&account)
+	}
+	if !*noPseudo {
+		pseudomyse(&account)
+	}
 	account.Method = "POST"
-	cRequest := compRequest{GraphId: "1"}
+	cRequest := compGraphRequest{GraphId: "1"}
 
 	getChilds(account)
 	childs = reorderObjects(childs)
@@ -49,15 +56,19 @@ func main() {
 				v.Body[t] = "@{" + v.Body.s(t) + ".id}"
 			}
 		}
-		cleanUpObjects(&v)
-		pseudomyse(&v)
+		if !*noCleanup {			
+			cleanUpObjects(&v)
+		}
+		if !*noPseudo {
+			pseudomyse(&v)
+		}		
 		v.Method = "POST"
 
 		cRequest.CompRequest = append(cRequest.CompRequest, v)
 	}
 
 	//create or open file
-	graph := compGraphs{Graphs: []compRequest{cRequest}}
+	graph := compGraphs{Graphs: []compGraphRequest{cRequest}}
 	data, _ := json.MarshalIndent(graph, "", " ")
 	log.Info("Writing output to file ...")
 	log.Info("Elements to write: ", len(cRequest.CompRequest))
@@ -118,12 +129,16 @@ func getObjectDescription(obj *sObject) ObjectDescription {
 	}
 	// Get the object description
 	var od ObjectDescription
+	if obj.Type == "" {
+		return ObjectDescription{}
+	}
 	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + obj.Type + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 
 	if err := json.Unmarshal(body, &od); err != nil {
-		panic(err)
+		log.Warning("Unmarshalling of od failed: ", obj.Type)
+		return ObjectDescription{}
 	}
 	ods[obj.Type] = od
 	return od
@@ -151,7 +166,6 @@ func getChilds(objc sObject) {
 			for _, w := range v.ReferenceTo {
 				obId := objc.Body.s(v.Name)
 				if slices.Contains(config.IncludeList, w) && obId != "" {
-
 					if !slices.Contains(visited, obId) {
 						o := getRoot(obId, w)
 						visited = append(visited, obId)
@@ -176,6 +190,8 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	var res QueryResult
 	json.Unmarshal(body, &res)
 
+	log.Debug("Query for: ", tpe, " results ", len(res.Records), " children")
+	log.Debug("Query URL: ", url)
 	// Result is a list of records, now get each one of them
 	for _, v := range res.Records {
 		if slices.Contains(visited, v.Id) {
@@ -205,7 +221,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 	return result
 }
 
-// getRoot returns a account as sObject
+// getRoot returns a sObject
 // structure given a sObjectId
 func getRoot(obj, tpe string) sObject {
 
@@ -215,7 +231,7 @@ func getRoot(obj, tpe string) sObject {
 	body := getSalesForce(req)
 	var dat rawObject
 	if err := json.Unmarshal(body, &dat); err != nil {
-		log.Error("Unmarshalling of root object failed: ", obj, tpe)
+		log.Warning("Unmarshalling of root object failed: ", obj, tpe)
 		return sObject{}
 	}
 	return sObject{Type: dat.d("attributes").s("type"),

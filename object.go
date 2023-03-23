@@ -75,13 +75,22 @@ type sObject struct {
 }
 
 type compGraphs struct {
-	Graphs []compRequest `json:"graphs"`
+	Graphs []compGraphRequest `json:"graphs"`
 }
-type compRequest struct {
+type compGraphRequest struct {
 	GraphId     string    `json:"graphId"`
 	CompRequest []sObject `json:"compositeRequest"`
 }
 
+type compositeRequest struct {
+	method      string `json:"method"`
+	url         string `json:"url"`
+	referenceId string `json:"referenceId"`
+}
+
+type compRequest struct {
+	compositeRequest compositeRequest `json:"compositeRequest"`
+}
 type MappingTable struct {
 	Object     string   `json:""`
 	References []string `json:""`
