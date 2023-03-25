@@ -1,4 +1,4 @@
-package main
+package sfdcTreeExtractor
 
 import (
 	"math/rand"

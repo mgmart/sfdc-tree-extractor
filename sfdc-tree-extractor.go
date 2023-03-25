@@ -1,9 +1,8 @@
-package main
+package sfdcTreeExtractor
 
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,56 +11,48 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func main() {
+//GetTree returns a whole tree based on configuration
 
-	// TODO: process cmdline arguments
-	// TODO: make LogLevel configurable
-	log.Level = log.LevelDebug
-	log.Info("sandbox-loader starting ...")
-
-	// cmdline flags
-	objectPtr := flag.String("object", "0017Q00000NyD8jQAF", "Rootobject to retrieve")
-	typePtr := flag.String("type", "Account", "The type of object")
-	noPseudo := flag.Bool("noPseudo", false, "switch off pseudomisation")
-	noCleanup := flag.Bool("noCleanup", false, "switch off deletion of empty fields")
-	flag.Parse()
-
-	log.Debug("object: ", *objectPtr)
-	log.Debug("type: ", *typePtr)
-
-	getConfiguration()
+func GetTree(obj string, tpe string) []sObject {
 
 	log.Info("Authenticate with SF")
-	bearer = "Bearer " + getBearerToken()
+	Config.Bearer = "Bearer " + getBearerToken()
 
-	account := getRoot(*objectPtr, *typePtr)
-	log.Debug("Root: ", account.Type, " : ", account.Id)
-	if !*noCleanup {
-		cleanUpObjects(&account)
+	root := getRoot(obj, tpe)
+
+	childs = append(childs, root)
+	getChilds(root)
+
+	for _, v := range childs {
+
+		if !Config.NoCleanUp {
+			cleanUpObjects(&v)
+		}
+		if !Config.NoPseudo {
+			pseudomyse(&v)
+		}
+
+		childs = reorderObjects(childs)
 	}
-	if !*noPseudo {
-		pseudomyse(&account)
-	}
-	account.Method = "POST"
+	log.Info("Calls made: ", counter)
+	return childs
+}
+
+// GetCompositeGraph creates a request
+// body for a composite grapg request
+func GetCompositeGraph(childs []sObject) []byte {
+	//	account.Method = "POST"
 	cRequest := compGraphRequest{GraphId: "1"}
 
-	getChilds(account)
-	childs = reorderObjects(childs)
-
+	// -----
 	// Create compound request element
 	for _, v := range childs {
 		log.Info("Create compound: ", v.Type)
-		for _, t := range config.Mapping[v.Type] {
+		for _, t := range Config.Mapping[v.Type] {
 			if v.Body[t] != nil {
 				v.Body[t] = "@{" + v.Body.s(t) + ".id}"
 			}
 		}
-		if !*noCleanup {			
-			cleanUpObjects(&v)
-		}
-		if !*noPseudo {
-			pseudomyse(&v)
-		}		
 		v.Method = "POST"
 
 		cRequest.CompRequest = append(cRequest.CompRequest, v)
@@ -70,10 +61,11 @@ func main() {
 	//create or open file
 	graph := compGraphs{Graphs: []compGraphRequest{cRequest}}
 	data, _ := json.MarshalIndent(graph, "", " ")
-	log.Info("Elements to write: ", len(cRequest.CompRequest))
-	writeFile(data, "composite-request-body.json")
-	log.Info("Calls made: ", counter)
 
+	// --
+
+	log.Info("Elements to write: ", len(cRequest.CompRequest))
+	return data
 }
 
 // reorders Object slice according to
@@ -81,7 +73,7 @@ func main() {
 func reorderObjects(objs []sObject) []sObject {
 	var orderedObjs []sObject
 
-	for _, k := range config.IncludeList {
+	for _, k := range Config.IncludeList {
 		for _, o := range objs {
 			if o.Type == k {
 				orderedObjs = append(orderedObjs, o)
@@ -121,7 +113,7 @@ func getObjectDescription(obj *sObject) ObjectDescription {
 	if obj.Type == "" {
 		return ObjectDescription{}
 	}
-	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + obj.Type + "/describe"
+	url := Config.SFDCurl + "/services/data/v57.0/sobjects/" + obj.Type + "/describe"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 
@@ -140,7 +132,7 @@ func getChilds(objc sObject) {
 
 	for _, v := range objcd.Childs {
 		if v.Name != "" {
-			if slices.Contains(config.IncludeList, v.Obj) {
+			if slices.Contains(Config.IncludeList, v.Obj) {
 				for _, c := range getChildObjects(objc.Id, v.Obj, v.Field) {
 					childs = append(childs, c)
 					visited = append(visited, c.Id)
@@ -154,7 +146,7 @@ func getChilds(objc sObject) {
 		if len(v.ReferenceTo) > 0 {
 			for _, w := range v.ReferenceTo {
 				obId := objc.Body.s(v.Name)
-				if slices.Contains(config.IncludeList, w) && obId != "" {
+				if slices.Contains(Config.IncludeList, w) && obId != "" {
 					if !slices.Contains(visited, obId) {
 						o := getRoot(obId, w)
 						visited = append(visited, obId)
@@ -171,11 +163,11 @@ func getChilds(objc sObject) {
 // objectId in a given field
 func getChildObjects(objId string, tpe string, nme string) []sObject {
 	// Query for child records
-	url := config.SFDCurl + "/services/data/v57.0/query?q=" + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
+	url := Config.SFDCurl + "/services/data/v57.0/query?q=" + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var result []sObject
-    var cR compRequest
+	var cR compRequest
 	var res QueryResult
 	json.Unmarshal(body, &res)
 
@@ -186,18 +178,18 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 		if slices.Contains(visited, v.Id) {
 			continue
 		}
-		
-		newCR :=compositeRequest{
-			Method: "GET",
-			URL: v.Attributes.URL,
+
+		newCR := compositeRequest{
+			Method:      "GET",
+			URL:         v.Attributes.URL,
 			ReferenceId: v.Id,
 		}
-		cR.CompositeRequest = append(cR.CompositeRequest, newCR)		
+		cR.CompositeRequest = append(cR.CompositeRequest, newCR)
 	}
 	if len(cR.CompositeRequest) > 0 {
-	
+
 		comp, _ := json.MarshalIndent(cR, "", " ")
-		url = config.SFDCurl + "/services/data/v57.0/composite"
+		url = Config.SFDCurl + "/services/data/v57.0/composite"
 		req, _ = http.NewRequest("POST", url, bytes.NewReader(comp))
 		req.Header.Add("Content-Type", "application/json")
 		body = getSalesForce(req)
@@ -207,7 +199,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 		if err := json.Unmarshal(body, &resp); err != nil {
 			panic(err)
 		}
-	
+
 		for _, dat := range resp.Objects {
 			dat.Type = dat.Body.d("attributes").s("type")
 			dat.URL = dat.Body.d("attributes").s("url")
@@ -216,7 +208,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 			visited = append(visited, dat.Id)
 			getChilds(dat)
 		}
-	}		
+	}
 	return result
 }
 
@@ -224,7 +216,7 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 // structure given a sObjectId
 func getRoot(obj, tpe string) sObject {
 
-	url := config.SFDCurl + "/services/data/v57.0/sobjects/" + tpe + "/" + obj
+	url := Config.SFDCurl + "/services/data/v57.0/sobjects/" + tpe + "/" + obj
 	req, _ := http.NewRequest("GET", url, nil)
 
 	body := getSalesForce(req)
@@ -243,8 +235,8 @@ func getRoot(obj, tpe string) sObject {
 // getSalesForce returns the response for a given
 // API request to SalesForce as a byte-array
 func getSalesForce(req *http.Request) []byte {
-	// log.Debug(req.URL)
-	req.Header.Add("Authorization", bearer)
+	log.Debug(req.URL)
+	req.Header.Add("Authorization", Config.Bearer)
 	calls = calls + 1
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -266,7 +258,7 @@ func getSalesForce(req *http.Request) []byte {
 	switch resp.StatusCode {
 	case 400:
 		log.Error("Error with Response: ", string(body))
-		os.Exit(1)		
+		os.Exit(1)
 	case 401:
 		log.Error("Error with Response: ", resp.Status)
 		os.Exit(1)

@@ -1,4 +1,4 @@
-module mario.land/sandbox-loader
+module github.com/mgmart/sfdcTreeExtractor
 
 go 1.19
 

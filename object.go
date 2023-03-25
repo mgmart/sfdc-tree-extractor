@@ -1,4 +1,4 @@
-package main
+package sfdcTreeExtractor
 
 type Attributes struct {
 	Type string `json:"type"`
@@ -89,7 +89,7 @@ type compositeRequest struct {
 }
 
 type CompositeResponse struct {
-	Objects    []sObject  `json:"compositeResponse"`
+	Objects []sObject `json:"compositeResponse"`
 }
 
 type compRequest struct {
@@ -99,13 +99,17 @@ type MappingTable struct {
 	Object     string   `json:""`
 	References []string `json:""`
 }
+
 type Configuration struct {
 	SFDCurl      string              `json:"sfdcurl"`
 	UserName     string              `json:"username"`
 	Password     string              `json:"password"`
 	ClientId     string              `json:"clientid"`
 	ClientSecret string              `json:"clientsecret"`
+	Bearer       string              `json:"accesstoken"`
 	IncludeList  []string            `json:"includelist"`
 	LogLevel     string              `json:"loglevel"`
 	Mapping      map[string][]string `json:"mapping"`
+	NoCleanUp    bool
+	NoPseudo     bool
 }

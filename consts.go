@@ -1,7 +1,8 @@
-package main
+package sfdcTreeExtractor
 
-var config = Configuration{}
-var bearer = "Bearer " + "<<access-token>>"
+var Config = Configuration{}
+
+// var bearer = "Bearer " + "<<access-token>>"
 var calls = 0
 var visited []string
 var counter = 0

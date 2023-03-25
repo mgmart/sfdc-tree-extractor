@@ -1,24 +1,25 @@
-package main
+package sfdcTreeExtractor
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+
+	"github.com/cloudflare/cfssl/log"
 )
 
 func getBearerToken() string {
-
 	params := url.Values{
 		"response_type": {"code"},
 		"format":        {"json"},
 		"grant_type":    {"password"},
-		"client_id":     {config.ClientId},
-		"client_secret": {config.ClientSecret},
-		"username":      {config.UserName},
-		"password":      {config.Password},
+		"client_id":     {Config.ClientId},
+		"client_secret": {Config.ClientSecret},
+		"username":      {Config.UserName},
+		"password":      {Config.Password},
 	}
 
-	burl := config.SFDCurl + "/services/oauth2/token" + "?" + params.Encode()
+	burl := Config.SFDCurl + "/services/oauth2/token" + "?" + params.Encode()
 
 	req, _ := http.NewRequest("POST", burl, nil)
 	body := getSalesForce(req)
@@ -29,6 +30,7 @@ func getBearerToken() string {
 		panic(err)
 	}
 
-	// log.Debug("Response: ", token)
+	log.Debug("Response: ", token)
+
 	return token.Bearer
 }
