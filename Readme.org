@@ -1,0 +1,22 @@
+* sfdcTreeExtractor
+
+** Objective 
+*** Extract a tree of documents out of am exsiting SFDC org
+   Such a tree can later be imported into other instance e.g. sandboxes.
+
+** Features
+   - pseudomise the extracted data
+   - configurable
+
+** Usage
+
+** Status 
+
+*** Work in Progress
+   - Provide customisation for tree depth depending on object type
+   - Provide customisation options for pseudomisation
+
+** License
+
+    sfdcTreeExtractor is distributed under the GNU Public License
+    version 3. See [[https://github.com/mgmart/EverOrg/blob/master/License.md][License.md]] for more info
