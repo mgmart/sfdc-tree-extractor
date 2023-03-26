@@ -18,9 +18,13 @@ func GetTree(obj string, tpe string) []sObject {
 	log.Info("Authenticate with SF")
 	Config.Bearer = "Bearer " + getBearerToken()
 
+	log.Debug("pseudo: ", Config.NoPseudo)
+	log.Debug("cleanup: ", Config.NoCleanUp)
+
 	root := getRoot(obj, tpe)
 
 	childs = append(childs, root)
+	visited = append(visited, root.Id)
 	getChilds(root)
 
 	for _, v := range childs {
@@ -47,7 +51,7 @@ func GetCompositeGraph(childs []sObject) []byte {
 	// -----
 	// Create compound request element
 	for _, v := range childs {
-		log.Info("Create compound: ", v.Type)
+		// log.Info("Create compound: ", v.Type)
 		for _, t := range Config.Mapping[v.Type] {
 			if v.Body[t] != nil {
 				v.Body[t] = "@{" + v.Body.s(t) + ".id}"
@@ -65,6 +69,7 @@ func GetCompositeGraph(childs []sObject) []byte {
 	// --
 
 	log.Info("Elements to write: ", len(cRequest.CompRequest))
+	log.Info("Calls made: ", counter)
 	return data
 }
 
@@ -128,6 +133,7 @@ func getObjectDescription(obj *sObject) ObjectDescription {
 // getChilds gets all possible children of a given parent
 // exlude and include lists are regarded
 func getChilds(objc sObject) {
+	// log.Debug("Getting childs for ", objc.Type)
 	objcd := getObjectDescription(&objc) // Query each type objects to get the childs of this type
 
 	for _, v := range objcd.Childs {
@@ -144,11 +150,13 @@ func getChilds(objc sObject) {
 	// get all childs which are not referenced as childs
 	for _, v := range objcd.Fields {
 		if len(v.ReferenceTo) > 0 {
+			// log.Debug("Getting other childs for ", objc.Type)
 			for _, w := range v.ReferenceTo {
 				obId := objc.Body.s(v.Name)
 				if slices.Contains(Config.IncludeList, w) && obId != "" {
 					if !slices.Contains(visited, obId) {
 						o := getRoot(obId, w)
+						o.URL = "/services/data/v57.0/sobjects/" + o.Type
 						visited = append(visited, obId)
 						childs = append(childs, o)
 						getChilds(o)
@@ -163,18 +171,23 @@ func getChilds(objc sObject) {
 // objectId in a given field
 func getChildObjects(objId string, tpe string, nme string) []sObject {
 	// Query for child records
+	// log.Debug("getChildRecords")
+	// logDebug()
+
 	url := Config.SFDCurl + "/services/data/v57.0/query?q=" + "SELECT+id+from+" + tpe + "+where+" + nme + "+=+'" + objId + "'"
 	req, _ := http.NewRequest("GET", url, nil)
 	body := getSalesForce(req)
 	var result []sObject
 	var cR compRequest
 	var res QueryResult
+	var reqList compRequestList
+
 	json.Unmarshal(body, &res)
 
 	log.Debug("Query for: ", tpe, " results ", len(res.Records), " children")
-	log.Debug("Query URL: ", url)
+	// log.Debug("Query URL: ", url)
 	// Result is a list of records, now get each one of them
-	for _, v := range res.Records {
+	for k, v := range res.Records {
 		if slices.Contains(visited, v.Id) {
 			continue
 		}
@@ -184,29 +197,47 @@ func getChildObjects(objId string, tpe string, nme string) []sObject {
 			URL:         v.Attributes.URL,
 			ReferenceId: v.Id,
 		}
+
 		cR.CompositeRequest = append(cR.CompositeRequest, newCR)
-	}
-	if len(cR.CompositeRequest) > 0 {
 
-		comp, _ := json.MarshalIndent(cR, "", " ")
-		url = Config.SFDCurl + "/services/data/v57.0/composite"
-		req, _ = http.NewRequest("POST", url, bytes.NewReader(comp))
-		req.Header.Add("Content-Type", "application/json")
-		body = getSalesForce(req)
-
-		var resp CompositeResponse
-		// log.Debug("Response: ", string(body))
-		if err := json.Unmarshal(body, &resp); err != nil {
-			panic(err)
+		if len(cR.CompositeRequest) > 15 {
+			reqList.List = append(reqList.List, cR)
+			cR.CompositeRequest = []compositeRequest{}
 		}
+		if k == len(res.Records)-1 {
+			reqList.List = append(reqList.List, cR)
+		}
+	}
 
-		for _, dat := range resp.Objects {
-			dat.Type = dat.Body.d("attributes").s("type")
-			dat.URL = dat.Body.d("attributes").s("url")
-			log.Debug(dat.Id, ":", dat.Type)
-			result = append(result, dat)
-			visited = append(visited, dat.Id)
-			getChilds(dat)
+	for k, v := range reqList.List {
+		log.Debug("comp req: ", len(v.CompositeRequest), " - ", k)
+		if len(v.CompositeRequest) > 0 {
+			comp, _ := json.MarshalIndent(v, "", " ")
+			url = Config.SFDCurl + "/services/data/v57.0/composite"
+			req, _ = http.NewRequest("POST", url, bytes.NewReader(comp))
+			req.Header.Add("Content-Type", "application/json")
+			body = getSalesForce(req)
+
+			var resp CompositeResponse
+			// log.Debug("Response: ", string(body))
+			if err := json.Unmarshal(body, &resp); err != nil {
+				// TODO: Printout API Error
+				log.Error("Create Composite Request: ", err)
+				log.Debug(string(body))
+			}
+			// TODO: Check if response is valid
+			for _, dat := range resp.Objects {
+				dat.Type = dat.Body.d("attributes").s("type")
+				// TODO: Potential bug
+				dat.URL = "/services/data/v57.0/sobjects/" + dat.Body.d("attributes").s("type")
+				// dat.URL = dat.Body.d("attributes").s("url")
+				// dat.URL = "/services/data/v57.0/sobjects/" + dat.Type
+				// log.Debug(dat.Id, ":", dat.Type)
+				// log.Debug(dat.Body["FirstName"], " ", dat.Body["LastName"])
+				result = append(result, dat)
+				visited = append(visited, dat.Id)
+				getChilds(dat)
+			}
 		}
 	}
 	return result
@@ -225,6 +256,8 @@ func getRoot(obj, tpe string) sObject {
 		log.Warning("Unmarshalling of root object failed: ", obj, tpe)
 		return sObject{}
 	}
+	log.Debug("get Root")
+	logDebug()
 	return sObject{Type: dat.d("attributes").s("type"),
 		Body: dat,
 		Id:   dat.s("Id"),
@@ -235,7 +268,7 @@ func getRoot(obj, tpe string) sObject {
 // getSalesForce returns the response for a given
 // API request to SalesForce as a byte-array
 func getSalesForce(req *http.Request) []byte {
-	log.Debug(req.URL)
+	// log.Debug(req.URL)
 	req.Header.Add("Authorization", Config.Bearer)
 	calls = calls + 1
 	client := &http.Client{}
@@ -266,4 +299,13 @@ func getSalesForce(req *http.Request) []byte {
 	return body
 	// log.Debug(string([]byte(body)))
 
+}
+
+func logDebug() {
+	log.Debug("--------------------------------------------------------------")
+	log.Debug("Length of Childs: ", len(childs))
+	for _, v := range childs {
+		log.Debug(v.Type)
+	}
+	log.Debug("--------------------------------------------------------------")
 }

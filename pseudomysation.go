@@ -10,10 +10,32 @@ import (
 	"github.com/go-faker/faker/v4"
 )
 
+func newPseudo() {
+	var r string
+	for _, v := range Config.Pseudo {
+		for k, v := range v {
+			switch v {
+			case "PhoneNumber":
+				r = faker.Phonenumber()
+			case "Company":
+				r = fakeCompany()
+			case "FirstName":
+				r = faker.FirstName()
+			case "LastName":
+				r = faker.LastName()
+			}
+			log.Debug("KV: ", k, " - ", r)
+		}
+	}
+	log.Debug("Pseudo: ", Config.Pseudo["Account"]["Name"])
+
+	log.Debug("Address", faker.GetRealAddress())
+
+	//	log.Debug(f.Call(nil))
+}
+
 func pseudomyse(obj *sObject) {
 
-	// log.Debug("Obj before: ", obj)
-	log.Debug(faker.Email())
 	switch obj.Type {
 	case "Account":
 		for key := range obj.Body {
@@ -42,14 +64,18 @@ func pseudomyse(obj *sObject) {
 			case "FirstName":
 				obj.Body["FirstName"] = faker.FirstName()
 			case "Phone":
-				obj.Body["Phone"] = faker.PhoneNumber
+				obj.Body["Phone"] = faker.Phonenumber()
 			case "LastName":
 				obj.Body["LastName"] = faker.LastName()
 			case "Fax":
-				obj.Body["Fax"] = faker.PhoneNumber
+				obj.Body["Fax"] = faker.Phonenumber()
+			case "MobilePhone":
+				obj.Body["MobilePhone"] = faker.Phonenumber()
 			case "Email":
 				obj.Body["Email"] = faker.Email()
-
+			case "MailingStreet":
+				addr := faker.GetRealAddress()
+				obj.Body["MailingStreet"] = addr.Address + "\n" + addr.City + ", " + addr.State + " " + addr.PostalCode + "\nUSA"
 			}
 		}
 	case "Campaign":
@@ -110,7 +136,6 @@ type Company struct {
 
 // CustomGenerator ...
 func myCustomGenerator() {
-	log.Debug("CG entry")
 	_ = faker.AddProvider("customIdFaker", func(v reflect.Value) (interface{}, error) {
 		return int64(43), nil
 	})
@@ -130,7 +155,6 @@ func myCustomGenerator() {
 		s1 := rand.NewSource(time.Now().UnixNano())
 		r1 := rand.New(s1)
 		ret := strings.Title(adjectives[r1.Intn(len(adjectives)-1)]) + "e " + substantives[r1.Intn(len(substantives)-1)] + " " + companyForm[r1.Intn(len(companyForm)-1)]
-		log.Debug("Company: ", ret)
 		return ret, nil
 	})
 
@@ -140,8 +164,8 @@ func myCustomGenerator() {
 func fakeCompany() string {
 	log.Level = log.LevelDebug
 	myCustomGenerator()
-	var company Person
+	var company Company
 	_ = faker.FakeData(&company)
 	log.Debug("fc: ", company)
-	return company.eMailPart()
+	return company.Name
 }

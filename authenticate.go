@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-
-	"github.com/cloudflare/cfssl/log"
 )
 
 func getBearerToken() string {
@@ -30,7 +28,7 @@ func getBearerToken() string {
 		panic(err)
 	}
 
-	log.Debug("Response: ", token)
+	// log.Debug("Bearer: ", token.Bearer)
 
 	return token.Bearer
 }

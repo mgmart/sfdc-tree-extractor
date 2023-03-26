@@ -95,21 +95,22 @@ type CompositeResponse struct {
 type compRequest struct {
 	CompositeRequest []compositeRequest `json:"compositeRequest"`
 }
-type MappingTable struct {
-	Object     string   `json:""`
-	References []string `json:""`
+
+type compRequestList struct {
+	List []compRequest
 }
 
 type Configuration struct {
-	SFDCurl      string              `json:"sfdcurl"`
-	UserName     string              `json:"username"`
-	Password     string              `json:"password"`
-	ClientId     string              `json:"clientid"`
-	ClientSecret string              `json:"clientsecret"`
-	Bearer       string              `json:"accesstoken"`
-	IncludeList  []string            `json:"includelist"`
-	LogLevel     string              `json:"loglevel"`
-	Mapping      map[string][]string `json:"mapping"`
+	SFDCurl      string                       `json:"sfdcurl"`
+	UserName     string                       `json:"username"`
+	Password     string                       `json:"password"`
+	ClientId     string                       `json:"clientid"`
+	ClientSecret string                       `json:"clientsecret"`
+	Bearer       string                       `json:"accesstoken"`
+	IncludeList  []string                     `json:"includelist"`
+	LogLevel     string                       `json:"loglevel"`
+	Mapping      map[string][]string          `json:"mapping"`
+	Pseudo       map[string]map[string]string `json:"pseudo"`
 	NoCleanUp    bool
 	NoPseudo     bool
 }
